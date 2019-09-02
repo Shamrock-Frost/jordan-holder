@@ -1,70 +1,103 @@
 import group_theory.subgroup
 import group_theory.quotient_group
 import data.fintype
+import .SES
 
 universes u v w
 
 section 
 
-variables {G : Type u} [group G]
-
 open is_subgroup
 
-def fixed_by (N : set G) (H : set G) : Prop :=
-  ∀ n, n ∈ N → ∀ h, h ∈ H → h * n * h⁻¹ ∈ N
+inductive normal_series (T : Group.{u}): Group.{u} → Type (u+1)
+| initial : ∀ {G K : Group.{u}},
+  SES T G K → normal_series G
+| step : ∀ {H G K : Group.{u}},
+       SES H G K
+       → ¬ (subsingleton H)
+       → ¬ (subsingleton K)
+       → normal_series H 
+       → normal_series G
 
-def subset_inter_subset_right (N H : set G) : set H :=
-  λ h, ↑ h ∈ N
+inductive is_composition_series : ∀ {G : Group.{u}}, normal_series 1 G → Type (u+2)
+| initial : ∀ {G K} (S : SES 1 G K), is_composition_series (normal_series.initial S)
+| step : ∀ {H G K : Group.{u}} (S : SES H G K)
+           (H_nontriv : ¬ (subsingleton H))
+           (K_nontriv : ¬ (subsingleton K))
+           (σ : normal_series 1 H),
+           simple_group K →
+           is_composition_series (normal_series.step S H_nontriv K_nontriv σ)
 
-instance subset_inter_subgroup {N H : set G} [is_subgroup N] [is_subgroup H]
-  : @is_subgroup H subtype.group (subset_inter_subset_right N H) := {
-    inv_mem := by { intros n helem, refine (_ : (↑ n) ⁻¹ ∈ N),
-                    apply inv_mem, assumption },
-    mul_mem := by { intros n n' h h', refine (_ : (↑ n) * (↑ n') ∈ N),
-                    apply is_submonoid.mul_mem, assumption' },
-    one_mem := by { refine (_ : ↑ 1 ∈ N), apply is_submonoid.one_mem }
-  }
+def length {T} : ∀ {G : Group}, normal_series T G → nat
+| _ (normal_series.initial _) := 1
+| _ (normal_series.step _ _ _ σ) := 1 + length σ
 
-lemma fixed_by_to_normal (N : set G) [is_subgroup N] (H : set G) [is_subgroup H]
-  (h : fixed_by N H) : @normal_subgroup H subtype.group (subset_inter_subset_right N H) :=
+def ℓ := @length
+
+def factors' {T : Group} : ∀ {G : Group}, normal_series T G → list Group
+| _ (@normal_series.initial _ _ K _) := [K]
+| _ (@normal_series.step _ _ _ K _ _ _ σ) := K :: factors' σ
+
+lemma is_group_hom.im_trivial {G H : Group} (φ : G → H) [is_group_hom φ]
+  : φ '' is_subgroup.trivial G = is_subgroup.trivial H :=
 begin
-  apply @normal_subgroup.mk H subtype.group (subset_inter_subset_right N H),
-  intros, refine (_ : (↑ g) * (↑ n) * (↑ g⁻¹) ∈ N),
-  apply h, assumption, apply g.property
+  simp [set.image, set_of], rw is_group_hom.map_one φ, 
+  simp [is_subgroup.trivial], funext, apply propext,
+  constructor; intro h,
+  { rw h, apply or.inl, refl },
+  { symmetry, apply or.resolve_right h, exact not_false }
 end
 
-def subquotient (H : set G) [is_subgroup H] (N : set G) [is_subgroup N]
-  : Type u := quotient_group.quotient (subset_inter_subset_right N H)
+def normal_series.pullback : ∀ {H G K : Group} (S : SES H G K), normal_series 1 K → normal_series H G
+| _ _ _ S (@normal_series.initial _ _ C0 S') := normal_series.initial S
+| H G K S (@normal_series.step _ Kn _ Cn S' _ _ σ) := 
+  let S'' : SES H (Group.of (S.g ⁻¹' (set.range S'.f))) Kn
+    := {
+      f := ⟨λ x, subtype.mk (S.f x)
+              $ by { rw set.mem_preimage, 
+                     have : S.f x ∈ is_group_hom.ker S.g,
+                     { rw ← SES.im_f_eq_ker_g, existsi x, refl },
+                     rw this.resolve_right not_false,
+                     have : is_subgroup (set.range S'.f) := is_group_hom.range_subgroup S'.f,
+                     apply is_submonoid.one_mem },
+            @is_group_hom.mk _ _ _ _ _ $ by {
+        constructor, intros, apply subtype.eq,
+        unfold_coes, simp, transitivity S.f x * S.f y,
+        apply is_monoid_hom.map_mul, refl }⟩,
+      f_inj := by { intros x y h, apply S.f_inj, 
+                    unfold_coes at h, simp at h, exact h },
+      g := ⟨λ x, S'.f_rev ⟨S.g x.val, x.property⟩,
+            @is_group_hom.mk _ _ _ _ _ $ by {
+              constructor, intros, 
+              unfold_coes, 
+              
+              apply subtype.eq,
+              transitivity S.f x * S.f y,
+              apply @is_monoid_hom.map_mul _ _ _ _ _
+                (@is_group_hom.to_is_monoid_hom _ _ _ _ _ S.f_hom),
+              refl, }⟩,
+      g_surj := λ y, by { simp, cases S.g_surj (S'.f y) with x hx, 
+                          refine exists.intro (subtype.mk x _) _,
+                          apply set.mem_preimage.mpr, existsi y, exact hx.symm,
+                          simp, transitivity S'.f_rev ⟨S'.f y, y, rfl⟩,
+                          congr, assumption, apply SES.f_rev_spec_l },
+      im_f_eq_ker_g := sorry }
+  in by { refine normal_series.step _ _ _ (normal_series.pullback _ σ),
+        }
+  -- let rec := normal_series.pullback _ σ
+  -- in 
 
-def subquotient_group {H : set G} [is_subgroup H] {N : set G} [is_subgroup N] (hfix : fixed_by N H)
-  : group (subquotient H N) := @quotient_group.group _ _ _ (fixed_by_to_normal N H hfix)
+-- def merge {G H : Group}
+--   (H_nontriv : ¬ (subsingleton H))
+--   (σ : normal_series H)
+--   : ∀ {K}, SES H G K
+--          → ¬ (subsingleton K)
+--          → normal_series K
+--          → normal_series G
+-- | K S K_nontriv normal_series.empty
+--   := normal_series.step S H_nontriv K_nontriv σ
+-- | K S K_nontriv
+--   (normal_series.step S' A_nontriv B_nontriv σ')
+--   := 
 
-inductive normal_series' : set G → Type (u+1)
-| empty : normal_series' (trivial G)
-| step : ∀ (N : set G) [is_subgroup N] (H : set G) [is_subgroup H],
-           N ⊂ H → fixed_by N H → normal_series' N → normal_series' H
-
-def normal_series (G : Type u) [group G] := normal_series' (@set.univ G)
-
-inductive is_composition_series : ∀ {H : set G}, normal_series' H → Prop
-| empty : is_composition_series normal_series'.empty
-| step : ∀ (N : set G) [inst_N : is_subgroup N] (H : set G) [inst_H : is_subgroup H]
-           (hsub : N ⊂ H) (hfix : fixed_by N H)
-           (S : normal_series' N),
-           @simple_group (subquotient H N) (@subquotient_group _ _ H inst_H N inst_N hfix) →
-           is_composition_series (@normal_series'.step _ _ N inst_N H inst_H hsub hfix S)
-
-structure some_group :=
-{G : Type u} (group_structure : group G)
-
-def factors' (G : Type u) [group G]
-  (S : normal_series G) : list some_group :=
-  @normal_series'.rec_on _ _ (λ _ _, list some_group) 
-                         _ S [] 
-                         (λ N inst_N H inst_H hsub hfix _ l,
-                            ⟨@subquotient_group _ _ H inst_H N inst_N hfix⟩ :: l)
-
--- noncomputable def composition_series_of_fin_group (is_fin : fintype G)
---   : normal_series G :=
---   if h : simple_group G
---   then normal_series'.step G 
+end
