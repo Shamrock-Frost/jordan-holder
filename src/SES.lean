@@ -414,7 +414,7 @@ def SES.equiv_of_left {H H' G G' K K' : Group}
       ext, transitivity SES.map_out_right S (iso.hom ≫ S'.g) h1 (S.g x),
       refl, apply SES.map_out_right_comm,
     }
-  }
+  }.
 
 noncomputable
 def SES.equiv_of_ker_im_match {H H' G G' K K' : Group}
@@ -434,20 +434,32 @@ def SES.equiv_of_ker_im_match {H H' G G' K K' : Group}
          rw ← set.image_eq_preimage_of_inverse at h',
          exact funext (λ x, propext ⟨@h x, @h' x⟩),
          apply Group.iso_left_inverse, apply Group.iso_right_inverse },
-    SES.equiv_of_left iso S S' 
-      (S.left_iso_range ≪≫ Group.iso_restrict iso _
-       ≪≫ @eq.rec _ _ (λ A,  A ≅ H') S'.left_iso_range.symm _ (Group.subroup_eq_of_eq h2).symm)
-      $ by { 
-        -- rw ← category_theory.iso.inv_comp_eq,
-        --      ext, unfold_coes, simp *,
-             
-        ext, unfold_coes, simp *,
-             generalize h : (((Group.iso_restrict iso (set.range ⇑(S.f))).hom).val (((SES.left_iso_range S).hom).val x)) = t,
-             
-             transitivity S'.f ((SES.left_iso_range S').symm.hom (eq.rec t h2)),
-             { rw eq.rec }, 
-             { apply congr, refl, apply weird },
-             }
+    have h3  : Group.of ↥(⇑(iso.hom) '' set.range ⇑(S.f)) = Group.of ↥(set.range ⇑(S'.f)),
+    by { rw Group.subgroup_eq_of_eq h2, },
+    have h4 : ∀ {A B : Group} (h : A = B) (t : A),
+          t == (eq.rec (category_theory.iso.refl A) h : A ≅ B).hom.val t,
+    by { intros, cases h, refl },
+    begin
+      refine SES.equiv_of_left iso S S' _ _,  
+      transitivity,
+      exact (S.left_iso_range ≪≫ Group.iso_restrict iso _),
+      transitivity, tactic.swap, apply S'.left_iso_range.symm,
+      exact eq.rec (category_theory.iso.refl (Group.of ↥(⇑(iso.hom) '' set.range ⇑(S.f)))) h3,
+      rw category_theory.iso.trans_assoc,
+      ext, 
+      dsimp [(≪≫)], 
+      dsimp [SES.left_iso_range],
+      dsimp [Group.iso_restrict],
+      unfold_coes,
+      dsimp [subtype.val],
+      rw (_ : S'.f.val = ⇑(S'.f)), tactic.swap, refl,
+      rw S'.f_rev_spec_r,
+      unfold_coes, 
+      clear h1, clear h_l, clear h_r, 
+      generalize h : subtype.mk ((iso.hom).val ((S.f).val x)) _ = t,
+      transitivity t.val, { subst h },
+      congr, ext, rw h2, apply h4 h3
+    end
 
 lemma Group.normal_subgroup_card_lt_of_nontriv_quot
   {H G K : Group} [fintype G] (S : SES H G K) (hK : ¬ subsingleton K)
@@ -476,7 +488,6 @@ begin
   rw fintype.card_eq_zero_iff, exact λ h, h 1, apply finset.mem_univ
 end
 
-noncomputable
 def SES.not_contains_of_simple_quot_and_proper {H H' G G' K K' : Group} (iso : G ≅ G')
   (S : SES H G K) (S' : SES H' G' K')
   (hK : simple_group K) (hK' : ¬ subsingleton K')
@@ -532,6 +543,6 @@ def SES.partial_second_iso' {H H' G G' K K' : Group} (iso : G ≅ G')
   (hnoteqv : SES.equiv iso S S' → false)
   : SES (Group.of (pullback (S.f ≫ iso.hom) S'.f)) H K' :=
 begin
-  cases classical.subtype_of_exists (SES.AFUIEAFAFH iso S S' hK₁ hK₂ hK'₁ hK'₂ hnoteqv),
+  cases classical.subtype_of_exists (SES.not_contains_of_simple_quot_and_proper iso S S' hK₁ hK'₂ hnoteqv),
   apply @partial_second_iso H H' G G' K K' iso hK'₁ S S', assumption,
 end

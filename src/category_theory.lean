@@ -239,23 +239,23 @@ lemma Group.eq_of_im_eq_and_contain_ker
     symmetry, apply mul_inv_cancel_left
   }
 
-def Group.subroup_eq_of_eq {G : Group} {s t : set G}
+def Group.subgroup_eq_of_eq {G : Group} {s t : set G}
   [is_subgroup s] [is_subgroup t] (h : s = t)
   : Group.of s = Group.of t := by {
     tactic.unfreeze_local_instances, subst h,
   }
 
-lemma weird {H G : Group} {s t : set G} [is_subgroup s] [is_subgroup t]
-  (h : s = t)
-  (iso : Group.of t ≅ H)
-  (x : s)
-  : iso.hom.val (@eq.rec _ _ subtype x _ h)
-  = (@eq.rec _ _ (λ K : Group, K ≅ H)
-             iso _ (Group.subroup_eq_of_eq h)
-    .symm).hom.val x :=
-begin
-  admit
-end
+-- lemma weird {H G : Group} {s t : set G} [is_subgroup s] [is_subgroup t]
+--   (h : s = t)
+--   (iso : Group.of t ≅ H)
+--   (x : s)
+--   : iso.hom.val (@eq.rec _ _ subtype x _ h)
+--   = (@eq.rec _ _ (λ K : Group, K ≅ H)
+--              iso _ (Group.subroup_eq_of_eq h)
+--     .symm).hom.val x :=
+-- begin
+--   admit
+-- end
 
 inductive Group.list_equiv : list Group → list Group → Prop
 | nil : Group.list_equiv [] []
